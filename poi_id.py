@@ -415,66 +415,7 @@ print "printing summary of mean recall scores from Stratisfied Shuffle Split CV,
 # - Decision Tree
 # - Naïve Bayes
 # 
-# Metrics for SVC was not recorded due to errors. I am going to try some feature scaling and parameter tunes to see if that helps the issue now and re-evaluate. 
-# 
 
-# In[ ]:
-
-
-
-features_list=['poi','salary',  'bonus', 'total_stock_value', 'exercised_stock_options']
-data=featureFormat(my_dataset, features_list, sort_keys=True)
-labels, features=targetFeatureSplit(data)
-new_finance_features=numpy.array(features) +0.
-
-scaler = MinMaxScaler()
-rescaled_features=scaler.fit_transform(new_finance_features)
-
-#print "printing rescaled_features \n", rescaled_features
-
-param_grid1={'C': [1, 10, 100, 1000],},
-param_grid2={'C': [1, 10, 100, 1000], 'gamma': [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.1],}
-param_grid3={'C': [1, 10, 100],
-              'gamma': [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.1], }
-
-features_train1, features_test1, labels_train1, labels_test1=    train_test_split(rescaled_features, labels, test_size=0.3, random_state=42)
-
-
-clf = GridSearchCV(SVC(kernel='rbf'), param_grid1,scoring='recall')
-clf.fit(features_train1, labels_train1)
-print("Best estimator found by grid search:")
-print(clf.best_estimator_)
-print(clf.best_params_)
-print(clf.best_index_)
-print(clf.best_score_)    
-    
-    
-
-
-# In[ ]:
-
-clf=SVC(C=1000, cache_size=200, class_weight=None, coef0=0.0,
-  decision_function_shape='ovr', degree=3, gamma='auto', kernel='rbf',
-  max_iter=-1, probability=False, random_state=None, shrinking=True,
-  tol=0.001, verbose=False)
-clf.fit(features_train1,labels_train1)
-pred=clf.predict(features_test1)
-#print pred
-print "Accuracy is ",clf.score(features_test1, labels_test1)
-print "\nRunning 10 fold cross validation to compare accuracy\n"
-print "printing mean of 10 fold CV"
-print "mean = ",cross_val_score(clf,rescaled_features,labels,cv=10,scoring='accuracy').mean()
-print "\n"
-print "precision = ", precision_score(labels_test1,pred)
-print "recall = ", recall_score(labels_test1,pred)
-dump_classifier_and_data(clf, my_dataset, features_list)
-main()
-
-    
-
-
-# It doesnt look like feature scaling or parameter tunes helped much in terms of evaulating Precision and Recall. 
-# 
 # Having good recall means that nearly every time a POI shows up in my test set, I am able to identify him or her. Because of this, I am going to try and tune the classifiers that have the highest baseline of recall to see if I can improve the recall score. I feel this is the important metric to focus on because I want to make sure I dont miss a POI when they show up in the test set. When applying this to the enron case, I feel it is more important to be able to identify POIs even if there are some false positives. False postives can be proven innocent through court trials and rulings made on the individuals. However, if a POI is missed, they could walk free and never be brought to justice. 
 # 
 # Since parameter tuning is not needed on Naive Bayes, I am going to do paramater tuning on the alogrithms I initially tried. 
