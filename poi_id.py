@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[30]:
+# In[43]:
 
 #!/usr/bin/python
 
@@ -15,7 +15,7 @@ import numpy
 import pandas
 import math
 #sys.path.append("../tools/")
-get_ipython().magic(u'matplotlib inline')
+#%matplotlib inline
 from feature_format import featureFormat, targetFeatureSplit
 from tester import dump_classifier_and_data
 from sklearn.neighbors import KNeighborsClassifier
@@ -31,16 +31,20 @@ from sklearn.metrics import recall_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.cross_validation import StratifiedShuffleSplit
 from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.preprocessing import MinMaxScaler
 
 
-# In[2]:
+# In[18]:
 
 ### Task 1: Select what features you'll use.
 ### features_list is a list of strings, each of which is a feature name.
 ### The first feature must be "poi".
-features_list = ['poi','salary','bonus','total_stock_value','exercised_stock_options','total_payments','long_term_incentive'] # You will need to use more features
-financial_features_list = ['poi','salary','bonus','deferral_payments','deferred_income','director_fees','exercised_stock_options','expenses','loan_advances','long_term_incentive','restricted_stock','restricted_stock_deferred','total_payments','total_stock_value']
-email_feature_list = ['poi','to_messages', 'from_poi_to_this_person', 'from_messages', 'from_this_person_to_poi', 'shared_receipt_with_poi','fraction_from_poi','fraction_to_poi']
+features_list = ['poi','salary','bonus','total_stock_value','exercised_stock_options','total_payments',                 'long_term_incentive'] # You will need to use more features
+
+financial_features_list = ['poi','salary','bonus','deferral_payments','deferred_income','director_fees',                           'exercised_stock_options','expenses','loan_advances','long_term_incentive',                           'restricted_stock','restricted_stock_deferred','total_payments','total_stock_value']
+
+email_feature_list = ['poi','to_messages', 'from_poi_to_this_person', 'from_messages', 'from_this_person_to_poi',                      'shared_receipt_with_poi','fraction_from_poi','fraction_to_poi']
+
 ### Load the dictionary containing the dataset
 with open("final_project_dataset.pkl", "r") as data_file:
     data_dict = pickle.load(data_file)
@@ -57,7 +61,7 @@ print ("There are %d POIs" % (count))
 print ("There are %d non POIs" %(146-count))
 
 
-# In[3]:
+# In[19]:
 
 ### Task 2: Remove outliers
 ''' as seen in the outliers section, we saw that there was a "Total" entry in the data set that was a clear outlier.
@@ -68,7 +72,51 @@ data_dict.pop("TOTAL",0)
 print "length of data set after removing outlier = ", len(data_dict)
 
 
-# In[4]:
+
+# In[20]:
+
+# Load up data into pandas DF to explore for additional outliers
+df = pandas.DataFrame.from_records(list(data_dict.values()))
+employees = pandas.Series(list(data_dict.keys()))
+
+# set the index of df to be the employees series:
+df.set_index(employees, inplace=True)
+#replace string NaNs with numpy object NaN
+df.replace('NaN',numpy.nan, inplace=True)
+                          
+df.head()
+
+
+# In[21]:
+
+# check individuals for outliers 
+df.index.values.tolist()
+
+
+# In[22]:
+
+# check for additional outliers and NaNs by row
+sum_nans_rows = df.isnull().sum(axis=1)
+print sum_nans_rows[sum_nans_rows == sum_nans_rows.max()]
+print df.loc['LOCKHART EUGENE E']
+
+
+# After adding my new features to the dataset, I decided to check for more outliers by checking the names in the data set and checking if there were any individuals that had missing data for every features. After doing this, I identified 2 more outliers:
+#  - 'THE TRAVEL AGENCY IN THE PARK'
+#  - 'Lockhart Eugene E'
+#  
+# The Travel Agency in the Park is clearly not an individual and Eugene is not a POI, therefore i am going to remove them from the data set. 
+
+# In[23]:
+
+#remove additional outliers
+data_dict.pop("THE TRAVEL AGENCY IN THE PARK",0)
+data_dict.pop("LOCKHART EUGENE E",0)
+# Verify outliers were removed. Length should be 143
+print "length of data set after removing outliers = ", len(data_dict)
+
+
+# In[24]:
 
 ### Task 3: Create new feature(s)
 # Helper function
@@ -104,19 +152,20 @@ for name in data_dict:
 my_dataset=data_dict
 
 
-# In[5]:
+# In[25]:
 
-# Verify new features have been added correctly to the data set
+# Verify new features have been added correctly to the data set.
 df = pandas.DataFrame.from_records(list(data_dict.values()))
 employees = pandas.Series(list(data_dict.keys()))
 
 # set the index of df to be the employees series:
 df.set_index(employees, inplace=True)
+df.replace('NaN',numpy.nan, inplace=True)
                           
 df.head()
 
 
-# In[6]:
+# In[26]:
 
 # Visualize new features
 x = df['fraction_from_poi'].values
@@ -130,7 +179,7 @@ plt.show()
 
 # In the next cell, i am going to extract the features i defined in my list above and select the top 4 features from the financial features and from the email features to help aid my classifier. 
 
-# In[7]:
+# In[27]:
 
 ### Extract features and labels from dataset for local testing
 
@@ -165,10 +214,10 @@ print "printing email_features k scores: \n", (fit2.scores_)
 
 # After running SelectKBest seperately on the Finanical Data and Email Data. The following features were identified as the top 4 from each group:
 # * Financial Data:
-#     - 'exercised_stock_options'	25.09754153
-#     - 'total_stock_value'	24.46765405
-#     - 'bonus'	21.06000171
-#     - 'salary'	18.57570327
+#     - 'exercised_stock_options'	24.81507973
+#     - 'total_stock_value'	24.18289868
+#     - 'bonus'	20.79225205
+#     - 'salary'	18.28968404
 # 
 # 
 # 
@@ -183,9 +232,10 @@ print "printing email_features k scores: \n", (fit2.scores_)
 # 
 # Now i am going to combine these feature to extract the top overal features from this set
 
-# In[25]:
+# In[30]:
 
-financial_email_features=['poi','exercised_stock_options','total_stock_value','bonus','salary','shared_receipt_with_poi','from_poi_to_this_person','fraction_to_poi']
+financial_email_features=['poi','exercised_stock_options','total_stock_value','bonus','salary','shared_receipt_with_poi',                          'from_poi_to_this_person','fraction_to_poi','from_this_person_to_poi']
+
 financial_email_data=featureFormat(my_dataset, financial_email_features, sort_keys = True)
 labels, financial_email_features=targetFeatureSplit(financial_email_data)
 
@@ -213,7 +263,7 @@ print "printing financial_email_features k scores: \n", (fit3.scores_)
 # 
 #  Features from the financial data seem to be the best features to use to input them into our classifier. I'm going to compare this when I run SelectKBest on all features and also to SelectPercentile
 
-# In[109]:
+# In[31]:
 
 ''' 
 Create new df to produce scatterplot matrix and explore relationships between these 8 features. This will help aid in 
@@ -225,14 +275,14 @@ new_df=new_df.apply(pandas.to_numeric, errors='coerce').fillna(0)
 new_df.head()
 
 
-# In[43]:
+# In[32]:
 
 plt=sns.pairplot(new_df, hue='poi',diag_kind="reg")
 plt.savefig("output.png")
 #plt.show()
 
 
-# In[9]:
+# In[33]:
 
 # Explore Feature Scores from entire feature list
 full_feature_list=['poi','salary', 'deferral_payments', 'total_payments', 'loan_advances', 'bonus', 'restricted_stock_deferred', 'deferred_income', 'total_stock_value', 'expenses', 'exercised_stock_options', 'other', 'long_term_incentive', 'restricted_stock', 'director_fees','to_messages','from_poi_to_this_person', 'from_messages', 'from_this_person_to_poi', 'shared_receipt_with_poi','fraction_from_poi','fraction_to_poi']
@@ -254,33 +304,33 @@ feature=fit4.transform(full_features)
 # After running SelectKBest on the entire feature list, excluding email address, I observed the following K scores:
 # 
 # Feature 	Score
-# - 'exercised_stock_options'	25.09754153
-# - 'total_stock_value'	24.46765405
-# - 'bonus'	21.06000171
-# - 'salary'	18.57570327
-# - 'fraction_to_poi' 16.64170707
-# - 'deferred_income'	11.59554766
-# - 'long_term_incentive'	10.07245453
-# - 'restricted_stock'	9.34670079
-# - total_payments'	8.86672154
-# - 'shared_receipt_with_poi'	8.74648553
-# - 'loan_advances'	7.2427304
-# - 'expenses'	6.23420114
-# - 'from_poi_to_this_person'	5.34494152
-# - 'other'	4.20497086
-# - 'fraction_from_poi' 3.21076192
-# - 'from_this_person_to_poi'	2.42650813
-# - 'director_fees'	2.10765594
-# - 'to_messages'	1.69882435
-# - 'deferral_payments'	0.21705893
-# - 'from_messages'	0.1641645
-# - 'restricted_stock_deferred'	0.06498431
+# - 'exercised_stock_options'	24.81507973
+# - 'total_stock_value'	24.18289868
+# - 'bonus'	20.79225205
+# - 'salary'	18.28968404
+# - 'fraction_to_poi'	16.40971255
+# - 'deferred_income'	11.45847658
+# - 'long_term_incentive'	9.92218601
+# - 'restricted_stock'	9.21281062
+# - 'total_payments'	8.77277773
+# - 'shared_receipt_with_poi'	8.58942073
+# - 'loan_advances'	7.18405566
+# - 'expenses'	6.09417331
+# - 'from_poi_to_this_person'	5.24344971
+# - 'other'	4.18747751
+# - 'fraction_from_poi'	3.12809175
+# - 'from_this_person_to_poi'	2.38261211
+# - 'director_fees'	2.1263278
+# - 'to_messages'	1.64634113
+# - 'deferral_payments'	0.22461127
+# - 'from_messages'	0.16970095
+# - 'restricted_stock_deferred'	0.06549965
 # 
 # 
 # As seen, the top 4 features from this list is the same when I picked out the top 4 features from each group and ran SelectKBest on the combined list. Lets see if this is the same when using Selectpercentile
 # 
 
-# In[10]:
+# In[34]:
 
 from sklearn.feature_selection import SelectPercentile, f_classif
 test5=SelectPercentile(f_classif, percentile=10)
@@ -295,7 +345,7 @@ print "printing full_features k scores: \n", (fit5.scores_)
 # Since the classifiers I am going to try are not affected by feature scaling, I will not peform any feature scaling.
 # 
 
-# In[99]:
+# In[35]:
 
 ### Task 4: Try a varity of classifiers
 ### Please name your classifier clf for easy export below.
@@ -370,7 +420,7 @@ print "printing summary of mean recall scores from Stratisfied Shuffle Split CV,
 
 # In[ ]:
 
-from sklearn.preprocessing import MinMaxScaler
+
 
 features_list=['poi','salary',  'bonus', 'total_stock_value', 'exercised_stock_options']
 data=featureFormat(my_dataset, features_list, sort_keys=True)
@@ -430,7 +480,7 @@ main()
 # Since parameter tuning is not needed on Naive Bayes, I am going to do paramater tuning on the alogrithms I initially tried. 
 # 
 
-# In[100]:
+# In[36]:
 
 ### Task 5: Tune your classifier to achieve better than .3 precision and recall 
 ### using our testing script. Check the tester.py script in the final project
@@ -455,14 +505,14 @@ print(clf.best_index_)
 print(clf.best_score_)
 
 
-# In[102]:
+# In[37]:
 
 # Tune Decision Tree
 clf=tree.DecisionTreeClassifier(class_weight=None, criterion='gini', max_depth=None,
-            max_features=2, max_leaf_nodes=None, min_impurity_decrease=0.0,
+            max_features=3, max_leaf_nodes=None, min_impurity_decrease=0.0,
             min_impurity_split=None, min_samples_leaf=1,
             min_samples_split=2, min_weight_fraction_leaf=0.0,
-            presort=False, random_state=None, splitter='best')
+            presort=False, random_state=None, splitter='random')
 
 clf.fit(features_train,labels_train)
 
@@ -481,7 +531,7 @@ main()
 
 # When doing parameter tuning on Decision Tree using GridsearchCV, i had to set the scorer to recall in order to get the parameters that produced the highest recall. This seemed to help as I now get a recall score of .33. Let see how the other algorithms do. 
 
-# In[103]:
+# In[38]:
 
 # Tune Random Forest
 param_grid={'min_samples_split':[2,50,100],
@@ -498,7 +548,7 @@ print(clf.best_score_)
 #print(clf.feature_importances_)
 
 
-# In[104]:
+# In[39]:
 
 clf=RandomForestClassifier(bootstrap=True, class_weight=None, criterion='gini',
             max_depth=None, max_features='auto', max_leaf_nodes=None,
@@ -526,7 +576,7 @@ main()
 
 # When doing some parameter tuning on RandomForest, my recall improves a little bit but not enough as it is still below .3. I will try parameter tuning on some other algorithms and see if I can get the recall score above .3
 
-# In[105]:
+# In[40]:
 
 # Tune K Nearest Neighbors
 k=numpy.arange(10)+1
@@ -543,7 +593,7 @@ print(clf.best_score_)
 
 
 
-# In[106]:
+# In[41]:
 
 clf=KNeighborsClassifier(algorithm='auto', leaf_size=30, metric='minkowski',
            metric_params=None, n_jobs=1, n_neighbors=1, p=2,
@@ -576,9 +626,21 @@ main()
 # 
 # Cleary, the algorithm the benefited the most from parameter tuning was K Nearest Neighbor. It achieved the highest recall from all the classifiers I explored with and without parameter tunes. Now I am going to use K Nearest Neighbor with the optimal value for K and evaluate the precision and recall i get when testing the classifier. 
 
-# In[107]:
+# In[44]:
 
-# Run K Nearest Neighbor with optimal K Value and dump out performance metrics. This is my final choice for my classifier. 
+# Run K Nearest Neighbor with optimal K Value and dump out performance metrics. This is my final choice for my classifier.
+# I am also going to explore feature scaling on KNN to compare the evaluation metrics
+
+
+features_list=['poi','salary',  'bonus', 'total_stock_value', 'exercised_stock_options']
+data=featureFormat(my_dataset, features_list, sort_keys=True)
+labels, features=targetFeatureSplit(data)
+new_features=numpy.array(features) +0.
+
+scaler = MinMaxScaler()
+rescaled_features=scaler.fit_transform(new_features)
+
+features_train, features_test, labels_train, labels_test=    train_test_split(rescaled_features, labels, test_size=0.3, random_state=42)
 
 clf=KNeighborsClassifier(algorithm='auto', leaf_size=30, metric='minkowski',
            metric_params=None, n_jobs=1, n_neighbors=1, p=2,
@@ -594,16 +656,16 @@ print "precision = ", precision_score(labels_test,pred)
 print "recall = ", recall_score(labels_test,pred)
 print "\nRunning Stratisfied Shuffle split to compare recall\n"
 print "printing mean of Stratisfied Shuffle Split fold CV"
-print "mean recall = ",cross_val_score(clf,features,labels,cv=cv.split(features,labels),scoring='recall').mean()
-print "mean precision = ",cross_val_score(clf,features,labels,cv=cv.split(features,labels),scoring='precision').mean()
+print "mean recall = ",cross_val_score(clf,features,labels,cv=cv.split(rescaled_features,labels),scoring='recall').mean()
+print "mean precision = ",cross_val_score(clf,features,labels,cv=cv.split(rescaled_features,labels),scoring='precision').mean()
 print "\n"
 dump_classifier_and_data(clf, my_dataset, features_list)
 main()
 
 
-# As seen from above, when running Stratisfied Shuffle Split, I achieve a mean recall of .3 and a mean precision of .35. When the tester.py file is called, I achieve a recall of .382 and a precision of .49
+# As seen from above, when running Stratisfied Shuffle Split on re-scaled features, I achieve a mean recall of .3 and a mean precision of .35. When the tester.py file is called, I achieve a recall of .382 and a precision of .49. It seems like feature scaling didnt have much effect. 
 
-# In[108]:
+# In[45]:
 
 ### Task 6: Dump your classifier, dataset, and features_list so anyone can
 ### check your results. You do not need to change anything below, but make sure
@@ -611,118 +673,6 @@ main()
 ### generates the necessary .pkl files for validating your results.
 
 dump_classifier_and_data(clf, my_dataset, features_list)
-
-
-# In[ ]:
-
-# %load tester.py
-#!/usr/bin/pickle
-
-""" a basic script for importing student's POI identifier,
-    and checking the results that they get from it 
- 
-    requires that the algorithm, dataset, and features list
-    be written to my_classifier.pkl, my_dataset.pkl, and
-    my_feature_list.pkl, respectively
-
-    that process should happen at the end of poi_id.py
-"""
-
-import pickle
-import sys
-from sklearn.cross_validation import StratifiedShuffleSplit
-sys.path.append("../tools/")
-from feature_format import featureFormat, targetFeatureSplit
-
-PERF_FORMAT_STRING = "\tAccuracy: {:>0.{display_precision}f}\tPrecision: {:>0.{display_precision}f}\tRecall: {:>0.{display_precision}f}\tF1: {:>0.{display_precision}f}\tF2: {:>0.{display_precision}f}"
-RESULTS_FORMAT_STRING = "\tTotal predictions: {:4d}\tTrue positives: {:4d}\tFalse positives: {:4d}\tFalse negatives: {:4d}\tTrue negatives: {:4d}"
-
-def test_classifier(clf, dataset, feature_list, folds = 1000):
-    data = featureFormat(dataset, feature_list, sort_keys = True)
-    labels, features = targetFeatureSplit(data)
-    cv = StratifiedShuffleSplit(labels, folds, random_state = 42)
-    true_negatives = 0
-    false_negatives = 0
-    true_positives = 0
-    false_positives = 0
-    for train_idx, test_idx in cv: 
-        features_train = []
-        features_test  = []
-        labels_train   = []
-        labels_test    = []
-        for ii in train_idx:
-            features_train.append( features[ii] )
-            labels_train.append( labels[ii] )
-        for jj in test_idx:
-            features_test.append( features[jj] )
-            labels_test.append( labels[jj] )
-        
-        ### fit the classifier using training set, and test on test set
-        clf.fit(features_train, labels_train)
-        predictions = clf.predict(features_test)
-        for prediction, truth in zip(predictions, labels_test):
-            if prediction == 0 and truth == 0:
-                true_negatives += 1
-            elif prediction == 0 and truth == 1:
-                false_negatives += 1
-            elif prediction == 1 and truth == 0:
-                false_positives += 1
-            elif prediction == 1 and truth == 1:
-                true_positives += 1
-            else:
-                print "Warning: Found a predicted label not == 0 or 1."
-                print "All predictions should take value 0 or 1."
-                print "Evaluating performance for processed predictions:"
-                break
-    try:
-        total_predictions = true_negatives + false_negatives + false_positives + true_positives
-        accuracy = 1.0*(true_positives + true_negatives)/total_predictions
-        precision = 1.0*true_positives/(true_positives+false_positives)
-        recall = 1.0*true_positives/(true_positives+false_negatives)
-        f1 = 2.0 * true_positives/(2*true_positives + false_positives+false_negatives)
-        f2 = (1+2.0*2.0) * precision*recall/(4*precision + recall)
-        print clf
-        print PERF_FORMAT_STRING.format(accuracy, precision, recall, f1, f2, display_precision = 5)
-        print RESULTS_FORMAT_STRING.format(total_predictions, true_positives, false_positives, false_negatives, true_negatives)
-        print ""
-    except:
-        print "Got a divide by zero when trying out:", clf
-        print "Precision or recall may be undefined due to a lack of true positive predicitons."
-
-CLF_PICKLE_FILENAME = "my_classifier.pkl"
-DATASET_PICKLE_FILENAME = "my_dataset.pkl"
-FEATURE_LIST_FILENAME = "my_feature_list.pkl"
-
-def dump_classifier_and_data(clf, dataset, feature_list):
-    with open(CLF_PICKLE_FILENAME, "w") as clf_outfile:
-        pickle.dump(clf, clf_outfile)
-    with open(DATASET_PICKLE_FILENAME, "w") as dataset_outfile:
-        pickle.dump(dataset, dataset_outfile)
-    with open(FEATURE_LIST_FILENAME, "w") as featurelist_outfile:
-        pickle.dump(feature_list, featurelist_outfile)
-
-def load_classifier_and_data():
-    with open(CLF_PICKLE_FILENAME, "r") as clf_infile:
-        clf = pickle.load(clf_infile)
-    with open(DATASET_PICKLE_FILENAME, "r") as dataset_infile:
-        dataset = pickle.load(dataset_infile)
-    with open(FEATURE_LIST_FILENAME, "r") as featurelist_infile:
-        feature_list = pickle.load(featurelist_infile)
-    return clf, dataset, feature_list
-
-def main():
-    ### load up student's classifier, dataset, and feature_list
-    clf, dataset, feature_list = load_classifier_and_data()
-    ### Run testing script
-    test_classifier(clf, dataset, feature_list)
-
-if __name__ == '__main__':
-    main()
-
-
-# In[ ]:
-
-
 
 
 # In[ ]:
